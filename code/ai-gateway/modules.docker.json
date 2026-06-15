@@ -1,0 +1,59 @@
+{
+  "modules": {
+    "text": {
+      "enabled": true,
+      "provider": "http",
+      "model": "whisper-docker-v1",
+      "params": {
+        "speech_service_url": "http://speech-service:8090",
+        "timeout_sec": 60,
+        "retries": 2,
+        "backoff_sec": 0.5,
+        "debug_log_transcribe": false
+      }
+    },
+    "audio": {
+      "enabled": true,
+      "provider": "baseline",
+      "model": "audio-features-v1",
+      "params": {}
+    },
+    "face": {
+      "enabled": true,
+      "provider": "deepface",
+      "model": "emotion-v1",
+      "params": {
+        "min_interval_sec": 0.05,
+        "min_confidence": 5.0,
+        "enforce_detection": false,
+        "detector_backend": "ssd",
+        "align": false,
+        "min_laplacian_var": 0,
+        "min_face_side_px": 0,
+        "emit_no_face_face_analysis": false,
+        "max_concurrent_inferences": 1,
+        "emit_debug_face": true,
+        "log_face_inference": false,
+        "debug_bbox_smooth_alpha": 0.92,
+        "debug_max_face_area_frac": 0.42,
+        "emit_face_behavior": true,
+        "face_behavior_schema_version": "face_behavior.v1",
+        "mediapipe_enabled": true,
+        "mediapipe_model_path": "",
+        "mediapipe_model_url": "",
+        "mediapipe_max_landmarks": 120
+      }
+    },
+    "report": {
+      "enabled": true,
+      "provider": "stub-nn",
+      "model": "report-v1",
+      "params": {
+        "interval_sec": 30,
+        "own_nn_url": "",
+        "report_bucket_sec": 30,
+        "report_wake_floor_sec": 5
+      }
+    }
+  }
+}

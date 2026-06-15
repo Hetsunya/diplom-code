@@ -1,0 +1,52 @@
+---
+description: Authentication & Authorization rules
+globs:
+  - emeeting-backend/internal/auth/**
+  - emeeting-backend/middleware/**
+  - emeeting-ui/src/features/auth/**
+alwaysApply: false
+---
+
+## Auth Implementation Rules
+
+### Backend (Go)
+- Password hashing: `bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)`
+- JWT:
+  - Access token: 15min, подписан **HS256** (`JWT_SECRET`), claims: `sub`, `roles`, `exp`
+  - Refresh token: 7d, хранится в БД (`refresh_tokens`), одноразовый с ротацией
+- Cookies (фактическая реализация в `internal/auth/handler.go`):
+  - `access_token` — access JWT, HttpOnly
+  - `refresh_token` — refresh JWT, HttpOnly
+  - `Secure` — по TLS / `X-Forwarded-Proto`; `SameSite` — Lax при одном origin или `AUTH_COOKIE_SAMESITE`
+- Middleware порядок: `Recovery → RequestID → AccessLog → CORS → RateLimitLogin → RequireAuth → Handler`
+
+### Frontend (React)
+- AuthContext:
+  ```tsx
+  interface AuthContextType {
+    user: User | null;
+    isLoading: boolean;
+    login: (creds: Credentials) => Promise<void>;
+    logout: () => void;
+    refreshToken: () => Promise<void>; // вызывается автоматически при 401
+  }
+  ```
+- Axios interceptor: автоматический рефреш токена + retry оригинального запроса
+- Маршруты: `<ProtectedRoute roles={['host']} />` wrapper для роутинга
+
+### Безопасность
+- ✅ Все эндпоинты, кроме `/auth/login` и `/health`, требуют валидный токен
+- ✅ Refresh token rotation: при использовании — генерировать новый, инвалидировать старый
+- ✅ Rate limiting: 5 попыток логина/минуту на IP + аккаунт-лок после 10 неудач
+- ✅ Аудит: логировать `login_attempt`, `token_refresh`, `logout` в таблицу `auth_events`
+
+### Миграции БД
+- Новая таблица `refresh_tokens`: `token_hash`, `user_id`, `expires_at`, `revoked`
+- Обновление `auth_user`: добавить `failed_login_attempts`, `locked_until`
+- Индексы: `idx_refresh_tokens_token_hash`, `idx_auth_user_email`
+
+## Тестирование
+- Backend: `TestAuth_LoginFlow`, `TestAuth_TokenRefresh_Invalidated`, `TestMiddleware_RequireRole`
+- Frontend: `test('redirects to /login when unauthenticated', ...)` с mock API
+- Security: тест на brute-force protection, тест на XSS в форме логина
+

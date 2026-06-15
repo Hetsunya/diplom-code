@@ -1,0 +1,136 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: emeeting-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./code/emeeting-backend/migrations/up:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: diplom-backend:latest
+    build:
+      context: ./code/emeeting-backend
+    container_name: emeeting-backend
+    restart: unless-stopped
+    environment:
+      POSTGRES_DSN: ${POSTGRES_DSN}
+      SERVER_PORT: ${SERVER_PORT}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/ws/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  ui:
+    image: diplom-ui:latest
+    build:
+      context: ./code/emeeting-ui
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-/ws}
+    container_name: emeeting-ui
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+      VITE_WS_URL: ${VITE_WS_URL}
+      BACKEND_HTTP: http://backend:8080
+      PORT: 5173
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "5173"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  speech-service:
+    image: diplom-speech-service:latest
+    build:
+      context: ./code/speech-service
+    container_name: emeeting-speech-service
+    profiles: ["ai"]
+    restart: unless-stopped
+    environment:
+      SPEECH_ASR_ENGINE: ${SPEECH_ASR_ENGINE:-whisper}
+      WHISPER_MODEL_SIZE: ${WHISPER_MODEL_SIZE:-base}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-ru}
+      WHISPER_VAD_FILTER: ${WHISPER_VAD_FILTER:-true}
+      WHISPER_CONDITION_ON_PREVIOUS_TEXT: ${WHISPER_CONDITION_ON_PREVIOUS_TEXT:-false}
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  ai-gateway:
+    image: diplom-ai-gateway:latest
+    build:
+      context: ./code/ai-gateway
+    container_name: emeeting-ai-gateway
+    profiles: ["ai"]
+    restart: unless-stopped
+    environment:
+      BACKEND_WS_BASE_URL: ${BACKEND_WS_BASE_URL:-ws://backend:8080}
+      # 0 = `/ws/analysis` (all meetings). Set positive only for pinned single-session workers.
+      SESSION_ID: ${AI_GATEWAY_SESSION_ID:-0}
+      AI_GATEWAY_EMAIL: ${AI_GATEWAY_EMAIL:-demo1@example.com}
+      AI_GATEWAY_PASSWORD: ${AI_GATEWAY_PASSWORD:-demo1pass}
+      AI_GATEWAY_MODULES_CONFIG: /app/modules.docker.json
+      AI_GATEWAY_WS_MAX_MSG_BYTES: "${AI_GATEWAY_WS_MAX_MSG_BYTES:-54525952}"
+      AI_GATEWAY_WS_PING_INTERVAL: "${AI_GATEWAY_WS_PING_INTERVAL:-25}"
+      AI_GATEWAY_WS_PING_TIMEOUT: "${AI_GATEWAY_WS_PING_TIMEOUT:-300}"
+      CUDA_VISIBLE_DEVICES: "-1"
+      TF_CPP_MIN_LOG_LEVEL: "2"
+      # Poll interval (seconds) to reload modules JSON from disk without restarting (0 = disable).
+      AI_GATEWAY_CONFIG_POLL_SEC: ${AI_GATEWAY_CONFIG_POLL_SEC:-10}
+    depends_on:
+      backend:
+        condition: service_healthy
+      speech-service:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.9-alpine
+    container_name: emeeting-caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      ui:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+

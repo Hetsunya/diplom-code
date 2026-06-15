@@ -1,0 +1,62 @@
+{
+  "modules": {
+    "text": {
+      "enabled": true,
+      "provider": "http",
+      "model": "stub-v1",
+      "params": {
+        "speech_service_url": "http://127.0.0.1:8090",
+        "timeout_sec": 15,
+        "retries": 2,
+        "backoff_sec": 0.5
+      }
+    },
+    "audio": {
+      "enabled": true,
+      "provider": "baseline",
+      "model": "audio-features-v2",
+      "params": {
+        "min_chunk_bytes": 400,
+        "max_rms_samples": 8000,
+        "pause_threshold_ms": 2000
+      }
+    },
+    "face": {
+      "enabled": true,
+      "provider": "deepface",
+      "model": "emotion-v1",
+      "params": {
+        "min_interval_sec": 0.2,
+        "min_confidence": 5.0,
+        "enforce_detection": false,
+        "detector_backend": "opencv",
+        "align": false,
+        "min_laplacian_var": 0,
+        "min_face_side_px": 0,
+        "emit_no_face_face_analysis": false,
+        "max_concurrent_inferences": 2,
+        "emit_debug_face": false,
+        "log_face_inference": false,
+        "debug_bbox_smooth_alpha": 0.35,
+        "debug_max_face_area_frac": 0.45,
+        "emit_face_behavior": false,
+        "face_behavior_schema_version": "face_behavior.v1",
+        "mediapipe_enabled": false,
+        "mediapipe_model_path": "",
+        "mediapipe_model_url": "",
+        "mediapipe_max_landmarks": 120
+      }
+    },
+    "report": {
+      "enabled": true,
+      "provider": "stub-nn",
+      "model": "report-v1",
+      "params": {
+        "interval_sec": 30,
+        "own_nn_url": "",
+        "report_bucket_sec": 30,
+        "report_wake_floor_sec": 5
+      }
+    }
+  }
+}

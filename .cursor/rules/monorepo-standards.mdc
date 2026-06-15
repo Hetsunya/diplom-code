@@ -1,0 +1,40 @@
+---
+description: Единые стандарты кода и структуры монорепозитория eMeeting
+alwaysApply: true
+---
+
+# Monorepo Standards (eMeeting)
+
+## 1. Пути и документация
+
+- Код приложений — только в `code/` (`emeeting-ui`, `emeeting-backend`, `ai-gateway`, `speech-service`).
+- Docker / prod — в **корне репозитория** (`docker-compose.yml`, `docker-compose.prod.yml`, `Caddyfile`, `.env.prod.example`).
+- Продуктовая документация — `code/docs/`; каждый новый документ добавляется в `code/docs/README.md`.
+- Бэклог и статусы задач — `code/cursor backlog.md`; снимок после аудита — `.cursor/BACKLOG_SYNC.md`.
+
+## 2. Именование и контракты API
+
+- **REST JSON (Go handlers, UI types):** `camelCase` для полей, согласованно с `code/docs/api-contract.md`.
+- **WebSocket payload:** `snake_case` (`session_id`, `participant_id`, `trace_id`, `text_analysis`).
+- **Cookies auth:** `access_token` + `refresh_token` (не `session_token`). JWT — **HS256**, секрет `JWT_SECRET`.
+- **Модули анализа:** имена как в WS (`text_analysis`, `audio_analysis`, `face_analysis`), не сокращать до `text` в фильтрах API без явного алиаса в коде.
+
+## 3. Стиль кода по стекам
+
+| Стек | Правило |
+|------|---------|
+| **Go (backend)** | Комментарии к публичным типам/методам — **английский**; бизнес-ошибки через `fmt.Errorf` с контекстом. Новые домены — `internal/<domain>/module.go` + `RegisterRoutes`. |
+| **TypeScript (UI)** | **Двойные кавычки** в `src/features/**` и страницах; `api/**` — как в соседних файлах. Фичи — `src/features/<domain>/`. Стили — BEM-классы в `style.css`, без inline `style={{}}` в новых компонентах. |
+| **Python (ai-gateway)** | Модули в `modules/<name>/`; WS-плагин экспортирует `*Plugin` + `plugin`. Параметры модуля — отдельный `params.py` (как в `face/`), не inline dict. |
+
+## 4. Интеграция вместо «мёртвого кода»
+
+- Пакет с тестами **обязан быть подключён** к runtime (`cmd/server`, WS handler, UI hook). Не помечать задачу ✅, пока код не вызывается из production path.
+- `internal/meeting` — единственный источник правды для статусов митинга и `meeting_participant`; WS hub — транспорт, не дублирует бизнес-логику в обход БД.
+
+## 5. Тесты и CI
+
+- Backend: `go test ./...` + `go vet` перед PR.
+- Frontend: `npm run lint && npm run test && npm run build`.
+- AI-gateway: `pytest` в `ai-gateway/tests/` (не только `compileall`).
+- Задачи с DoD «E2E/smoke» — скрипт или тест в репозитории, упомянут в `code/docs/`.

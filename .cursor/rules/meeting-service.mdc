@@ -1,0 +1,48 @@
+---
+description: Meeting Service development rules
+globs:
+  - emeeting-backend/internal/meeting/**
+  - emeeting-backend/internal/ws/**
+  - emeeting-backend/internal/session/**
+  - emeeting-ui/src/features/meeting/**
+alwaysApply: false
+---
+
+## Meeting Service Patterns
+
+> **Аудит 2026-06-10:** бизнес-логика в `internal/meeting` должна вызываться из `internal/session` (WS/HTTP). Не дублировать participants/status только в `SessionHub` без записи в БД.
+
+### State Machine
+- Meeting status: `created` | `active` | `paused` | `ended` | `cancelled`
+- Переходы только через сервис-методы с валидацией: `StartMeeting()`, `EndMeeting()`
+- Все изменения состояния логировать в аудит-лог (таблица `meeting_events`)
+
+### WebSocket Events (backend → frontend)
+```go
+type WSEvent struct {
+    Type      string          `json:"type"` // "user_joined", "settings_updated", etc.
+    Payload   json.RawMessage `json:"payload"`
+    Timestamp time.Time       `json:"ts"`
+}
+```
+
+### Frontend Meeting Store (React Query + Zustand)
+- Использовать `useMeetingStore` для локального UI-state (модальные окна, UI-флаги)
+- Использовать `useQuery`/`useMutation` для server-state (participants, settings)
+- Подписка на WS: `useWebSocket('/ws/sessions/:id', { onEvent: handleMeetingEvent })`
+
+### Безопасность
+- Проверять `user_id` в токене против `participant.user_id` в БД перед доступом к митингу
+- Хост может кикнуть участника → событие `user_removed`, принудительный close WS
+- Все WS сообщения валидировать через `validator.Struct()` (go-playground/validator)
+
+### Тестирование
+- Юнит-тесты на state machine: `TestMeeting_Transitions`
+- Интеграция: запуск тестового сервера + WebSocket client в `TestE2E_MeetingFlow`
+- Mock WS в frontend-тестах через `vi.mock('@/lib/ws')`
+
+## Не делать
+- ❌ Не хранить чувствительные данные в WebSocket payload без шифрования
+- ❌ Не полагаться на frontend-валидацию для бизнес-логики
+- ❌ Не использовать `time.Now()` без учета timezones — хранить UTC, конвертить на клиенте
+

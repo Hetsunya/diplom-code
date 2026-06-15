@@ -1,0 +1,8 @@
+websockets
+asyncio
+deepface
+tf-keras
+opencv-python
+numpy
+Pillow
+mediapipe; python_version < "3.13"

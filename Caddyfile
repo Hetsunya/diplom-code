@@ -1,0 +1,22 @@
+{$DOMAIN} {
+  encode gzip zstd
+
+  # Serve UI (static + internal proxy)
+  reverse_proxy ui:5173
+
+  # API and WS routed directly to backend
+  handle_path /api/* {
+    reverse_proxy backend:8080 {
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-Host {host}
+    }
+  }
+
+  handle_path /ws/* {
+    reverse_proxy backend:8080 {
+      header_up X-Forwarded-Proto {scheme}
+      header_up X-Forwarded-Host {host}
+    }
+  }
+}
+
